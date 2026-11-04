@@ -1,0 +1,983 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Urenregistratie</title>
+<style>
+:root{
+ --primary:#6d4aff; --primary-dark:#5535d6; --primary-light:#e8e4ff;
+ --bg:#f5f6fa; --surface:#ffffff; --text:#1a1a2e; --muted:#808096;
+ --success:#149e56; --danger:#d64545;
+ --border:#e3e4f0; --shadow:0 2px 8px rgba(50,30,140,0.08);
+ --c-vak:#2e9bd6; --c-adv:#e07b39; --c-ziek:#c158c9; --c-feest:#1a9e8f;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text);font-size:15px;display:flex;flex-direction:column}
+#errBar{display:none;background:var(--danger);color:#fff;padding:8px 12px;font-size:12px;line-height:1.4;white-space:pre-wrap}
+
+header{background:linear-gradient(135deg,var(--primary),var(--primary-dark));color:#fff;padding:12px 16px 14px;box-shadow:0 2px 10px rgba(50,30,140,0.25);z-index:10}
+header .topLine{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+header h1{font-size:1.1rem;font-weight:700}
+header .user{font-size:0.82rem;opacity:0.92;font-weight:600}
+header .sub{font-size:0.7rem;opacity:0.85}
+
+main{flex:1;overflow-y:auto;padding:12px 12px 76px}
+section{display:none;padding:0}
+section.active{display:block}
+.card{background:var(--surface);border-radius:16px;padding:16px;margin-bottom:12px;box-shadow:var(--shadow);border:1px solid var(--border)}
+.card h2{font-size:0.95rem;color:var(--primary);margin-bottom:12px;font-weight:700}
+
+.stats-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:12px}
+.stat-tile{background:var(--surface);border-radius:14px;padding:14px 10px;box-shadow:var(--shadow);border:1px solid var(--border);text-align:center}
+.stat-tile .label{font-size:0.66rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.4px;font-weight:700;margin-bottom:5px}
+.stat-tile .value{font-size:1.45rem;font-weight:800;font-variant-numeric:tabular-nums;line-height:1.2}
+.stat-tile.positive .value{color:var(--success)}
+.stat-tile.negative .value{color:var(--danger)}
+.stat-tile .hint{font-size:0.66rem;color:var(--muted);margin-top:4px}
+
+.timer-display{font-size:4.2rem;font-weight:850;text-align:center;font-variant-numeric:tabular-nums;letter-spacing:3px;line-height:1.1;margin:8px 0}
+.timer-status{font-size:0.9rem;text-align:center;color:var(--muted);margin-bottom:14px;min-height:1.3em}
+.timer-buttons{display:flex;flex-direction:column;gap:11px;padding:0 8px}
+.timer-btn{border:none;border-radius:15px;padding:17px 22px;font-size:1rem;font-weight:700;cursor:pointer;width:100%}
+.timer-btn:active{transform:scale(0.97)}
+.timer-btn.primary{background:linear-gradient(135deg,var(--primary),var(--primary-dark));color:#fff;box-shadow:0 4px 14px rgba(109,76,255,0.35)}
+.timer-btn.secondary{background:var(--primary-light);color:var(--primary-dark)}
+.timer-btn.danger{background:var(--danger);color:#fff}
+.timer-hint{font-size:0.73rem;color:var(--muted);text-align:center;margin-top:10px;line-height:1.45}
+
+.badge{display:inline-block;padding:3px 9px;border-radius:11px;font-size:0.68rem;font-weight:800;color:#fff;text-transform:uppercase;vertical-align:middle}
+.bg-werk{background:var(--primary)}
+.bg-vak{background:var(--c-vak)}
+.bg-adv{background:var(--c-adv)}
+.bg-ziek{background:var(--c-ziek)}
+.bg-feest{background:var(--c-feest)}
+.bg-miss{background:var(--danger)}
+.bg-verw{background:#b3b0c8}
+.bg-vrij{background:#b3b0c8}
+
+.data-table{width:100%;border-collapse:collapse;font-size:0.82rem}
+.data-table th{color:var(--muted);font-size:0.7rem;text-transform:uppercase;letter-spacing:0.5px;font-weight:700;text-align:right;padding:7px 6px;border-bottom:2px solid var(--border);white-space:nowrap}
+.data-table td{padding:9px 6px;border-bottom:1px solid var(--border);text-align:right;white-space:nowrap}
+.data-table td:first-child,.data-table th:first-child{text-align:left}
+.data-table tfoot td{font-weight:800;border-top:2px solid var(--border);padding:11px 6px}
+.pos{color:var(--success);font-weight:700}
+.neg{color:var(--danger);font-weight:700}
+.neu{color:var(--muted)}
+
+.form-row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;align-items:flex-end}
+.form-field{flex:1;min-width:130px}
+.form-field label{display:block;font-size:0.72rem;color:var(--muted);margin-bottom:4px;font-weight:600}
+.form-field input,.form-field select{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:#fff;font-size:0.92rem;color:var(--text)}
+.form-field input:focus,.form-field select:focus{outline:2px solid var(--primary);outline-offset:-1px}
+
+.btn{border:none;border-radius:10px;padding:11px 16px;font-size:0.86rem;font-weight:700;cursor:pointer;background:var(--primary);color:#fff}
+.btn:active{transform:scale(0.97)}
+.btn.ghost{background:transparent;color:var(--primary);border:2px solid var(--primary)}
+.btn.warn{background:var(--danger)}
+.btn.success{background:var(--success)}
+.btn-sm{padding:7px 13px;font-size:0.78rem}
+.btn-block{width:100%}
+
+.calendar-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:8px}
+.calendar-header strong{font-size:1rem;flex:1;text-align:center}
+.calendar-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.cal-hdr{text-align:center;font-size:0.66rem;color:var(--muted);font-weight:800;text-transform:uppercase;padding:4px 0}
+.cal-cell{background:#fbfaff;border:1px solid var(--border);border-radius:9px;min-height:54px;padding:4px;cursor:pointer;overflow:hidden}
+.cal-cell.we{background:var(--primary-light)}
+.cal-cell.today{border:2px solid var(--primary)}
+.cal-day{font-weight:800;font-size:0.8rem}
+.cal-info{font-size:0.6rem;color:var(--muted);line-height:1.35;margin-top:2px}
+.cal-dot{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:2px;vertical-align:1px}
+
+.bottom-nav{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid var(--border);box-shadow:0 -2px 10px rgba(50,30,140,0.08);z-index:100;padding:7px 4px calc(7px + env(safe-area-inset-bottom));display:flex}
+.nav-item{flex:1;text-align:center;padding:5px 0;cursor:pointer;border-radius:12px}
+.nav-item.active{background:var(--primary-light)}
+.nav-icon{font-size:1.35rem;display:block;line-height:1.2}
+.nav-label{font-size:0.66rem;color:var(--muted);font-weight:700}
+.nav-item.active .nav-label{color:var(--primary)}
+
+.modal-bg{position:fixed;inset:0;background:rgba(20,15,50,0.55);display:none;align-items:center;justify-content:center;z-index:200;padding:16px}
+.modal-bg.show{display:flex}
+.modal{background:#fff;border-radius:18px;max-width:480px;width:100%;max-height:90vh;overflow-y:auto;padding:20px}
+.modal h3{margin-bottom:14px;font-size:1.05rem;color:var(--primary)}
+.modal-actions{display:flex;justify-content:space-between;align-items:center;margin-top:16px;gap:8px}
+
+.hint{font-size:0.74rem;color:var(--muted);margin-top:9px;line-height:1.5}
+.notification{position:fixed;top:14px;left:50%;margin-left:-110px;width:220px;background:var(--success);color:#fff;padding:12px 16px;border-radius:12px;font-size:0.84rem;font-weight:700;text-align:center;opacity:0;pointer-events:none;transition:opacity 0.25s;z-index:300}
+.notification.show{opacity:1}
+
+#printArea{display:none}
+@media print{
+ body>*{display:none !important}
+ #printArea{display:block !important;font-family:Georgia,serif;color:#000}
+ #printArea h1{font-size:1.35rem;margin-bottom:6px}
+ #printArea table{width:68%;border-collapse:collapse;margin:16px 0}
+ #printArea th,#printArea td{border:1px solid #000;padding:8px 12px;text-align:left}
+}
+</style>
+</head>
+<body>
+<div id="errBar"></div>
+<div id="notification" class="notification">Opgeslagen</div>
+
+<header>
+ <div class="topLine">
+  <h1>Urenregistratie</h1>
+  <span class="user" id="userNameDisplay"></span>
+ </div>
+ <div class="sub">40u/week &middot; 8u/dag &middot; ADV &middot; vakantie &middot; feestdagen &middot; vervoer</div>
+</header>
+
+<main>
+ <section id="s-dag" class="active">
+  <div class="stats-grid" id="dashboardStats"></div>
+  <div class="card">
+   <div id="timerDisplay" class="timer-display">00:00</div>
+   <div id="timerStatus" class="timer-status">Niet gestart</div>
+   <div class="timer-buttons">
+    <button class="timer-btn primary" onclick="APP.klokStart()">&#9654; START WERKEN</button>
+    <button class="timer-btn secondary" id="btnPause" onclick="APP.klokPauze()">&#9208; PAUZE</button>
+    <button class="timer-btn danger" onclick="APP.klokStop()">&#9632; STOP</button>
+   </div>
+   <div class="timer-hint">Pauzetijd wordt automatisch afgetrokken. De klok loopt door als je de app sluit of ververst.</div>
+  </div>
+  <div class="card">
+   <div id="dayDetailHeader" style="margin-bottom:10px"></div>
+   <div style="overflow-x:auto"><table class="data-table" id="dayDetailTable"></table></div>
+   <div style="margin-top:12px"><button class="btn ghost btn-sm" onclick="APP.openEdit(todayIso())">&#9998; Vandaag bewerken</button></div>
+  </div>
+  <div class="card">
+   <h2>Deze week</h2>
+   <table class="data-table" id="miniWeekTable"></table>
+  </div>
+ </section>
+
+ <section id="s-kal">
+  <div class="card">
+   <div class="calendar-header">
+    <button class="btn btn-sm ghost" onclick="APP.kalNav(-1)">&#9664;</button>
+    <strong id="kalTitle"></strong>
+    <button class="btn btn-sm ghost" onclick="APP.kalNav(1)">&#9654;</button>
+   </div>
+   <div class="calendar-grid" id="calGrid"></div>
+   <div class="hint">Tik op een dag om te bewerken. Kleuren: paars=werken, blauw=vakantie, oranje=ADV, roze=ziekte, groen=feestdag, rood=niet geregistreerd.</div>
+  </div>
+ </section>
+
+ <section id="s-over">
+  <div class="card">
+   <h2>Weekdetails</h2>
+   <div class="form-row" style="align-items:center">
+    <div class="form-field"><label>Datum in de week</label><input type="date" id="wkDate" onchange="APP.renderWeekFull()"></div>
+    <button class="btn btn-sm ghost" onclick="APP.wkNow()">Deze week</button>
+   </div>
+   <div style="overflow-x:auto"><table class="data-table" id="weekFullTable"></table></div>
+  </div>
+  <div class="card">
+   <h2>Maandoverzicht</h2>
+   <div class="form-row" style="align-items:center">
+    <div class="form-field"><label>Maand</label><input type="month" id="mnInput" onchange="APP.renderMonth()"></div>
+    <button class="btn btn-sm ghost" onclick="APP.mnNow()">Deze maand</button>
+   </div>
+   <div style="overflow-x:auto"><table class="data-table" id="monthTable"></table></div>
+  </div>
+  <div class="card">
+   <h2>Jaaroverzicht</h2>
+   <div class="form-row" style="align-items:center">
+    <div class="form-field"><label>Jaar</label><input type="number" id="yrInput" min="2020" max="2100" onchange="APP.renderYear()"></div>
+    <button class="btn btn-sm" onclick="APP.csvExport()">CSV-export</button>
+   </div>
+   <div style="overflow-x:auto"><table class="data-table" id="yearTable"></table></div>
+  </div>
+ </section>
+
+ <section id="s-ver">
+  <div class="card">
+   <h2>Vervoer per maand</h2>
+   <div class="form-row" style="align-items:center">
+    <div class="form-field"><label>Maand</label><input type="month" id="vtMonth" onchange="APP.loadVT()"></div>
+    <button class="btn btn-sm ghost" onclick="APP.vtNow()">Deze maand</button>
+   </div>
+   <div class="form-row">
+    <div class="form-field"><label>Dagen met de fiets</label><input type="number" id="vtBike" min="0" max="31"></div>
+    <div class="form-field"><label>Dagen met de auto</label><input type="number" id="vtCar" min="0" max="31"></div>
+   </div>
+   <div class="form-field" style="margin-bottom:12px"><label>Opmerking (optioneel)</label><input type="text" id="vtNote" maxlength="120"></div>
+   <div style="display:flex;gap:10px">
+    <button class="btn success" style="flex:1" onclick="APP.saveVT()">Opslaan</button>
+    <button class="btn" onclick="APP.printVT()">&#128424; PDF</button>
+   </div>
+  </div>
+ </section>
+
+ <section id="s-meer">
+  <div class="card">
+   <h2>Belgische feestdagen</h2>
+   <div class="form-row" style="align-items:center">
+    <div class="form-field"><label>Jaar</label><input type="number" id="fedYear" min="2020" max="2100" onchange="APP.renderFed()"></div>
+   </div>
+   <div style="overflow-x:auto"><table class="data-table" id="fedTable"></table></div>
+   <div class="hint">Vul een vervangdatum in als je bedrijf een feestdag verschuift. De wettelijke datum wordt dan een gewone werkdag (doel 8u) en de vervangdatum een vrije dag.</div>
+  </div>
+  <div class="card">
+   <h2>Instellingen</h2>
+   <div class="form-field" style="margin-bottom:10px"><label>Naam (voor rapporten)</label><input type="text" id="stName" maxlength="60"></div>
+   <div class="form-row">
+    <div class="form-field"><label>Begindatum</label><input type="date" id="stStart"></div>
+    <div class="form-field"><label>Uren/dag</label><input type="number" id="stDayHrs" step="0.5" min="1"></div>
+   </div>
+   <div class="form-row">
+    <div class="form-field"><label>Uren/week</label><input type="number" id="stWeekHrs" step="0.5" min="1"></div>
+    <div class="form-field"><label>Vakantiedagen/jaar</label><input type="number" id="stVac" min="0"></div>
+   </div>
+   <div class="form-row">
+    <div class="form-field"><label>Extralegae vakantiedagen</label><input type="number" id="stVacExtra" min="0"></div>
+    <div class="form-field"><label>ADV-opbouw uren/maand</label><input type="number" id="stAdvPM" step="0.5" min="0"></div>
+   </div>
+   <div class="form-field" style="margin-bottom:12px"><label>ADV startsaldo (uren)</label><input type="number" id="stAdvStart" step="0.5" min="0"></div>
+   <button class="btn success btn-block" onclick="APP.saveSettings()">Instellingen opslaan</button>
+   <div class="hint">ADV-opbouw (+8u standaard = 1 dag/maand) wordt automatisch bijgeschreven vanaf de begindatum. Een ADV-dag boekt 8u van het ADV-saldo en heeft geen effect op het weeksaldo.</div>
+  </div>
+  <div class="card">
+   <h2>Back-up</h2>
+   <div style="display:flex;gap:10px">
+    <button class="btn" style="flex:1" onclick="APP.backup()">&#11015; Exporteren</button>
+    <button class="btn ghost" style="flex:1" onclick="document.getElementById('backupFile').click()">&#11014; Importeren</button>
+   </div>
+   <input type="file" id="backupFile" accept=".json" style="display:none" onchange="APP.restore(this)">
+   <div class="hint">Alle data staat lokaal in deze browser op dit apparaat. Exporteer regelmatig, zeker als je op meerdere apparaten werkt.</div>
+  </div>
+ </section>
+</main>
+
+<nav class="bottom-nav">
+ <div class="nav-item active" id="nav-dag" onclick="APP.tab('dag')"><span class="nav-icon">&#9201;</span><span class="nav-label">Vandaag</span></div>
+ <div class="nav-item" id="nav-kal" onclick="APP.tab('kal')"><span class="nav-icon">&#128197;</span><span class="nav-label">Kalender</span></div>
+ <div class="nav-item" id="nav-over" onclick="APP.tab('over')"><span class="nav-icon">&#128200;</span><span class="nav-label">Overzicht</span></div>
+ <div class="nav-item" id="nav-ver" onclick="APP.tab('ver')"><span class="nav-icon">&#128690;</span><span class="nav-label">Vervoer</span></div>
+ <div class="nav-item" id="nav-meer" onclick="APP.tab('meer')"><span class="nav-icon">&#9881;</span><span class="nav-label">Meer</span></div>
+</nav>
+
+<div class="modal-bg" id="editModalBg" onclick="if(event.target.id==='editModalBg')APP.closeEdit()">
+ <div class="modal">
+  <h3 id="editTitle">Dag bewerken</h3>
+  <div class="form-field" style="margin-bottom:10px"><label>Datum</label><input type="date" id="editDate" onchange="APP.updateEditHint()"></div>
+  <div class="form-field" style="margin-bottom:4px">
+   <label>Type dag</label>
+   <select id="editType" onchange="APP.updateEditHint()">
+    <option value="werk">Werken</option>
+    <option value="vak">Vakantie</option>
+    <option value="adv">ADV-dag</option>
+    <option value="ziek">Ziekte</option>
+    <option value="feest">Feestdag (vrij)</option>
+   </select>
+  </div>
+  <div id="editHint" class="hint" style="margin-bottom:10px"></div>
+  <div class="form-row">
+   <div class="form-field"><label>Begin</label><input type="time" id="editStart"></div>
+   <div class="form-field"><label>Einde</label><input type="time" id="editEnd"></div>
+  </div>
+  <div class="form-row">
+   <div class="form-field"><label>Pauze (min)</label><input type="number" id="editBreak" min="0" max="480" value="0"></div>
+   <div class="form-field"><label>Notitie</label><input type="text" id="editNote" maxlength="120"></div>
+  </div>
+  <div class="modal-actions">
+   <button class="btn warn btn-sm" onclick="APP.deleteEdit()">Verwijderen</button>
+   <div style="display:flex;gap:8px">
+    <button class="btn btn-sm ghost" onclick="APP.closeEdit()">Annuleren</button>
+    <button class="btn btn-sm success" onclick="APP.saveEdit()">Opslaan</button>
+   </div>
+  </div>
+ </div>
+</div>
+
+<div id="printArea"></div>
+
+<script>
+"use strict";
+
+/* ============================================================
+   URENREGISTRATIE — geoptimaliseerde versie
+   Optimalisaties t.o.v. vorige versie:
+   1. Syntaxfouten uit de vorige versie verwijderd (script stierf stil)
+   2. Feestdagen-cache per jaar (was: volledige herberekening per dag)
+   3. dagInfo-cache met dataversie (was: opnieuw berekend bij elke opvraag)
+   4. Tab-switch rendert alleen de zichtbare sectie
+   5. Tick-interval werkt uitsluitend op de timer (geen volledige re-render)
+   6. Alle opsitelogica via saveStorage() met automatische cache-invalidatie
+   ============================================================ */
+
+var APP = {};
+
+function $(id){ return document.getElementById(id); }
+function pad(n){ n = String(n); while(n.length < 2){ n = "0" + n; } return n; }
+function iso(d){ return d.getFullYear() + "-" + pad(d.getMonth()+1) + "-" + pad(d.getDate()); }
+function fromIso(s){ var p = s.split("-"); return new Date(+p[0], +p[1]-1, +p[2]); }
+function hm(min){ min = Math.abs(min); return pad(Math.floor(min/60)) + ":" + pad(Math.round(min%60)); }
+function sg(min){ return (min < 0 ? "-" : "") + hm(min); }
+function toMin(t){ if(!t){ return 0; } var p = t.split(":"); return (+p[0])*60 + ((+p[1]) || 0); }
+function nlDate(s){ return s.split("-").reverse().join("/"); }
+function esc(s){ return String(s).replace(/[&<>"]/g, function(c){
+ return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c];
+}); }
+function todayIso(){ return iso(new Date()); }
+
+var MAAN = ["januari","februari","maart","april","mei","juni","juli","augustus","september","oktober","november","december"];
+var DG = ["zo","ma","di","wo","do","vr","za"];
+var TL = { werk:"Werken", vak:"Vakantie", adv:"ADV", ziek:"Ziekte", feest:"Feestdag", miss:"Ontbreekt", verw:"Verwacht", vrij:"Vrij" };
+var BG = { werk:"bg-werk", vak:"bg-vak", adv:"bg-adv", ziek:"bg-ziek", feest:"bg-feest", miss:"bg-miss", verw:"bg-verw", vrij:"bg-vrij" };
+var KLEUR = { werk:"#6d4aff", vak:"#2e9bd6", adv:"#e07b39", ziek:"#c158c9", feest:"#1a9e8f", miss:"#d64545", verw:"#b3b0c8", vrij:"#b3b0c8" };
+
+var DEF = { name:"", start:todayIso(), dayHrs:8, weekHrs:40, vacDays:20, vacExtra:0, advPM:8, advStart:0 };
+
+/* ---------- state + caches ---------- */
+APP.days = {}; APP.set = {}; APP.vt = {}; APP.sh = {}; APP.clock = null;
+
+var dagCache = {};      /* ds -> dagInfo, ongeldig gemaakt bij dataversiewissel */
+var feestCache = {};    /* jaar -> feestmap */
+var dataVersie = 0;
+
+function invalideerCaches(){ dataVersie++; dagCache = {}; }
+
+function loadStorage(){
+ try{
+  var v = localStorage.getItem("hrs_days"); APP.days = v ? JSON.parse(v) : {};
+  v = localStorage.getItem("hrs_vt");       APP.vt   = v ? JSON.parse(v) : {};
+  v = localStorage.getItem("hrs_sh");       APP.sh   = v ? JSON.parse(v) : {};
+  v = localStorage.getItem("hrs_clock");    APP.clock= v ? JSON.parse(v) : null;
+  v = localStorage.getItem("hrs_set");
+  var s = v ? JSON.parse(v) : {}, k;
+  APP.set = {};
+  for(k in DEF){ APP.set[k] = (s[k] !== undefined ? s[k] : DEF[k]); }
+ }catch(e){ __err("Laden mislukt: " + e.message); }
+}
+function saveStorage(){
+ try{
+  localStorage.setItem("hrs_days",  JSON.stringify(APP.days));
+  localStorage.setItem("hrs_vt",    JSON.stringify(APP.vt));
+  localStorage.setItem("hrs_sh",    JSON.stringify(APP.sh));
+  localStorage.setItem("hrs_set",   JSON.stringify(APP.set));
+  localStorage.setItem("hrs_clock", JSON.stringify(APP.clock));
+ }catch(e){ __err("Opslaan mislukt: " + e.message); }
+ invalideerCaches();
+}
+function saveClockOnly(){
+ try{ localStorage.setItem("hrs_clock", JSON.stringify(APP.clock)); }
+ catch(e){ __err("Opslaan mislukt: " + e.message); }
+}
+
+function __err(msg){
+ var b = $("errBar");
+ if(b){ b.style.display = "block"; b.textContent = (b.textContent ? b.textContent + "\n" : "") + msg; }
+}
+window.onerror = function(msg, src, line){ __err("FOUT: " + msg + " (regel " + line + ")"); return false; };
+
+/* ---------- feestdagen (België) met cache ---------- */
+function pasen(y){
+ var a=y%19, b=Math.floor(y/100), c=y%100, d=Math.floor(b/4), e=b%4,
+     f=Math.floor((b+8)/25), g=Math.floor((b-f+1)/3),
+     h=(19*a+b-d-g+15)%30, i=Math.floor(c/4), k=c%4,
+     l=(32+2*e+2*i-h-k)%7, m=Math.floor((a+11*h+22*l)/451),
+     ma=Math.floor((h+l-7*m+114)/31), dg=((h+l-7*m+114)%31)+1;
+ return new Date(y, ma-1, dg);
+}
+function feestdagen(y){
+ var p = pasen(y);
+ function r(n){ return new Date(p.getFullYear(), p.getMonth(), p.getDate()+n); }
+ return [
+  { d:new Date(y,0,1),   n:"Nieuwjaar" },
+  { d:r(1),              n:"Paasmaandag" },
+  { d:new Date(y,4,1),   n:"Feest van de Arbeid" },
+  { d:r(39),             n:"O.H. Hemelvaart" },
+  { d:r(50),             n:"Pinkstermaandag" },
+  { d:new Date(y,6,21),  n:"Nationale feestdag" },
+  { d:new Date(y,7,15),  n:"O.L.V. Hemelvaart" },
+  { d:new Date(y,10,1),  n:"Allerheiligen" },
+  { d:new Date(y,10,11), n:"Wapenstilstand" },
+  { d:new Date(y,11,25), n:"Kerstmis" }
+ ];
+}
+function feestMap(y){
+ if(feestCache[y]){ return feestCache[y]; }
+ var raw = feestdagen(y), sh = APP.sh[String(y)] || {}, map = {}, i, d;
+ for(i = 0; i < raw.length; i++){
+  d = sh[String(i)] ? fromIso(sh[String(i)]) : raw[i].d;
+  map[iso(d)] = { naam:raw[i].n, wet:iso(raw[i].d), verpl:!!sh[String(i)] };
+ }
+ feestCache[y] = map;
+ return map;
+}
+function isFeest(s){ return feestMap(fromIso(s).getFullYear())[s] || null; }
+
+/* ---------- daginfo met cache ---------- */
+APP.dagInfo = function(s){
+ var key = s + "#" + dataVersie;
+ if(dagCache[key]){ return dagCache[key]; }
+ var d = fromIso(s), rec = APP.days[s];
+ var wd = (d.getDay() >= 1 && d.getDay() <= 5);
+ var fs = isFeest(s), type;
+ if(rec){ type = rec.type; }
+ else if(fs){ type = "feest"; }
+ else if(wd){ type = (s <= todayIso() ? "miss" : "verw"); }
+ else { type = "vrij"; }
+ var doel = 0;
+ if(type === "werk" || type === "miss" || type === "verw"){ doel = APP.set.dayHrs * 60; }
+ var gw = 0;
+ if(rec && rec.start && rec.end){ gw = Math.max(0, toMin(rec.end) - toMin(rec.start) - (rec.brk || 0)); }
+ var saldo = gw - doel;
+ if(fs && rec && rec.type === "werk"){ saldo = gw; }
+ var info = { type:type, rec:rec, gw:gw, doel:doel, saldo:saldo, fs:fs };
+ dagCache[key] = info;
+ return info;
+};
+
+APP.saldoTot = function(){
+ var t = 0, d = fromIso(APP.set.start), e = fromIso(todayIso());
+ while(d <= e){ t += APP.dagInfo(iso(d)).saldo; d.setDate(d.getDate()+1); }
+ return Math.round(t);
+};
+APP.advInfo = function(){
+ var st = fromIso(APP.set.start), now = new Date();
+ var cur = new Date(st.getFullYear(), st.getMonth(), 1);
+ var nm = new Date(now.getFullYear(), now.getMonth(), 1);
+ var m = 0;
+ while(cur <= nm){ m++; cur.setMonth(cur.getMonth()+1); }
+ var verdiend = m * APP.set.advPM * 60 + APP.set.advStart * 60;
+ var genomen = 0, k;
+ for(k in APP.days){ if(APP.days[k].type === "adv"){ genomen += APP.set.dayHrs * 60; } }
+ var saldo = verdiend - genomen;
+ return { saldo:saldo, dagen:saldo / (APP.set.dayHrs * 60) };
+};
+APP.vakInfo = function(y){
+ var used = 0, k, ys = String(y);
+ for(k in APP.days){ if(APP.days[k].type === "vak" && k.indexOf(ys) === 0){ used++; } }
+ var tot = APP.set.vacDays + APP.set.vacExtra;
+ return { total:tot, used:used, left:tot - used };
+};
+
+/* ---------- notificatie ---------- */
+var notifTimer = null;
+function showNotify(txt){
+ var n = $("notification");
+ n.textContent = txt;
+ n.classList.add("show");
+ if(notifTimer){ clearTimeout(notifTimer); }
+ notifTimer = setTimeout(function(){ n.classList.remove("show"); }, 2000);
+}
+
+/* ---------- navigatie: rendert alleen de zichtbare sectie ---------- */
+var RENDER_PER_TAB = {
+ dag:  ["dashboard"],
+ kal:  ["kalender"],
+ over: ["weekVol","maand","jaar"],
+ ver:  ["vervoer"],
+ meer: ["feestdagen","instellingen"]
+};
+APP.tab = function(t){
+ try{
+  var navs = document.querySelectorAll(".nav-item"), i;
+  for(i = 0; i < navs.length; i++){ navs[i].className = "nav-item"; }
+  var secs = document.querySelectorAll("main section");
+  for(i = 0; i < secs.length; i++){ secs[i].className = ""; }
+  $("nav-" + t).className = "nav-item active";
+  $("s-" + t).className = "active";
+  var lijst = RENDER_PER_TAB[t] || [], j;
+  for(j = 0; j < lijst.length; j++){
+   try{ APP["render_" + lijst[j]](); }
+   catch(e){ __err(lijst[j] + ": " + e.message); }
+  }
+  window.scrollTo(0, 0);
+  $("timerDisplay").scrollIntoView;
+ }catch(e){ __err("tab: " + e.message); }
+};
+
+/* ---------- klok ---------- */
+APP.klokStart = function(){
+ if(APP.clock){ showNotify("Timer loopt al"); return; }
+ var s = todayIso(), r = APP.days[s];
+ if(r && r.type !== "werk" && !confirm("Vandaag staat op '" + TL[r.type] + "'. Omzetten naar werken?")){ return; }
+ var st = new Date().toTimeString().slice(0,5);
+ APP.days[s] = { date:s, type:"werk", start:(r && r.start) || st, end:"", brk:(r && r.brk) || 0, note:(r && r.note) || "" };
+ APP.clock = { started:Date.now(), pausedAt:null, brkBase:(r && r.brk) || 0 };
+ saveStorage(); APP.tick(); APP.render_dashboard();
+ showNotify("Timer gestart om " + st);
+};
+APP.klokPauze = function(){
+ if(!APP.clock){ return; }
+ if(APP.clock.pausedAt){
+  APP.clock.brkBase += (Date.now() - APP.clock.pausedAt);
+  APP.clock.pausedAt = null;
+  showNotify("Werk hervat");
+ }else{
+  APP.clock.pausedAt = Date.now();
+  showNotify("Pauze gestart");
+ }
+ saveClockOnly(); APP.tick();
+};
+APP.klokStop = function(){
+ if(!APP.clock){ showNotify("Timer is niet actief"); return; }
+ var s = todayIso(), brk = APP.clock.brkBase || 0;
+ if(APP.clock.pausedAt){ brk += (Date.now() - APP.clock.pausedAt); APP.clock.pausedAt = null; }
+ var n = new Date(), r = APP.days[s] || { date:s, type:"werk" };
+ r.type = "werk";
+ r.end = n.toTimeString().slice(0,5);
+ r.brk = Math.round(brk / 60000);
+ if(!r.start){ r.start = new Date(APP.clock.started).toTimeString().slice(0,5); }
+ APP.days[s] = r;
+ APP.clock = null;
+ saveStorage(); APP.tick(); APP.render_dashboard();
+ showNotify("Gestopt om " + r.end + " \u00b7 " + hm(toMin(r.end) - toMin(r.start) - r.brk) + " gewerkt");
+};
+
+/* Tick: alleen de timer bijwerken, geen renders */
+APP.tick = function(){
+ var el1 = $("timerDisplay"), el2 = $("timerStatus"), el3 = $("btnPause");
+ if(!APP.clock || !APP.clock.started){
+  el1.textContent = "00:00";
+  el2.textContent = "Niet gestart";
+  el3.innerHTML = "&#9208; PAUZE";
+  return;
+ }
+ var brk = APP.clock.brkBase || 0;
+ if(APP.clock.pausedAt){ brk += (Date.now() - APP.clock.pausedAt); }
+ var sec = Math.max(0, Math.round((Date.now() - APP.clock.started - brk) / 1000));
+ el1.textContent = pad(Math.floor(sec/3600)) + ":" + pad(Math.floor((sec%3600)/60));
+ if(APP.clock.pausedAt){
+  el2.textContent = "In pauze sinds " + new Date(APP.clock.pausedAt).toLocaleTimeString();
+  el3.innerHTML = "&#9654; HERVATTEN";
+ }else{
+  el2.textContent = "Aan het werk \u00b7 pauze: " + hm(Math.round(brk/60000));
+  el3.innerHTML = "&#9208; PAUZE";
+ }
+};
+
+/* ---------- renders ---------- */
+APP.render_dashboard = function(){
+ var y = new Date().getFullYear();
+ var ov = APP.saldoTot(), ad = APP.advInfo(), vk = APP.vakInfo(y);
+ var h = "";
+ h += '<div class="stat-tile ' + (ov > 0 ? "positive" : ov < 0 ? "negative" : "") + '">' +
+      '<div class="label">Overuren totaal</div><div class="value">' + sg(ov) + '</div>' +
+      '<div class="hint">sinds ' + nlDate(APP.set.start) + '</div></div>';
+ h += '<div class="stat-tile"><div class="label">ADV-saldo</div><div class="value">' + hm(ad.saldo) + '</div>' +
+      '<div class="hint">\u2248 ' + (Math.round(ad.dagen * 10) / 10) + ' dagen</div></div>';
+ h += '<div class="stat-tile"><div class="label">Vakantie ' + y + '</div><div class="value">' + vk.left +
+      '<span style="font-size:0.95rem;color:var(--muted)">/' + vk.total + '</span></div>' +
+      '<div class="hint">dagen resterend</div></div>';
+
+ /* weeksaldo */
+ var d = fromIso(todayIso()), mon = new Date(d);
+ mon.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+ var ws = 0, i, cd, ds, inf;
+ for(i = 0; i < 7; i++){
+  cd = new Date(mon); cd.setDate(mon.getDate() + i);
+  ds = iso(cd);
+  if(ds > todayIso()){ continue; }
+  inf = APP.dagInfo(ds);
+  if(inf.type !== "adv"){ ws += inf.saldo; }
+ }
+ h += '<div class="stat-tile ' + (ws > 0 ? "positive" : ws < 0 ? "negative" : "") + '">' +
+      '<div class="label">Weeksaldo</div><div class="value">' + sg(ws) + '</div>' +
+      '<div class="hint">deze week t/m vandaag</div></div>';
+ $("dashboardStats").innerHTML = h;
+
+ /* vandaag */
+ var s = todayIso(); inf = APP.dagInfo(s);
+ var r = inf.rec, dt = fromIso(s);
+ var hdr = '<span class="badge ' + BG[inf.type] + '">' + TL[inf.type] + '</span> ' +
+           DG[dt.getDay()] + " " + nlDate(s);
+ if(inf.fs){ hdr += " <span class='badge bg-feest'>" + esc(inf.fs.naam) + "</span>"; }
+ if(inf.type === "miss"){ hdr += "<div class='hint' style='color:var(--danger)'>\u26a0 Deze werkdag is nog niet ingevuld en telt als tekort.</div>"; }
+ if(r && r.note){ hdr += "<div class='hint'>\u128221 " + esc(r.note) + "</div>"; }
+ $("dayDetailHeader").innerHTML = hdr;
+
+ var tb = "<tr><th>Begin</th><th>Einde</th><th>Pauze</th><th>Gewerkt</th><th>Doel</th><th>Saldo</th></tr>" +
+  "<tr><td>" + ((r && r.start) || "\u2014") + "</td>" +
+  "<td>" + ((r && r.end) || "\u2014") + "</td>" +
+  "<td>" + (r ? (r.brk || 0) + " min" : "\u2014") + "</td>" +
+  "<td>" + hm(inf.gw) + "</td>" +
+  "<td>" + (inf.doel ? hm(inf.doel) : "\u2014") + "</td>" +
+  "<td class='" + (inf.saldo > 0 ? "pos" : inf.saldo < 0 ? "neg" : "neu") + "'>" + sg(inf.saldo) + "</td></tr>";
+ $("dayDetailTable").innerHTML = tb;
+
+ /* mini week */
+ var mw = "<tr><th>Dag</th><th>Type</th><th>Gewerkt</th><th>Saldo</th></tr>";
+ for(i = 0; i < 7; i++){
+  cd = new Date(mon); cd.setDate(mon.getDate() + i);
+  ds = iso(cd); inf = APP.dagInfo(ds);
+  mw += "<tr><td>" + DG[cd.getDay()] + " " + ds.slice(8,10) + "/" + ds.slice(5,7) + "</td>" +
+   "<td><span class='badge " + BG[inf.type] + "' style='font-size:0.62rem;padding:2px 6px'>" + TL[inf.type] + "</span></td>" +
+   "<td>" + (inf.gw ? hm(inf.gw) : "\u2014") + "</td>" +
+   "<td class='" + (inf.saldo > 0 ? "pos" : inf.saldo < 0 ? "neg" : "neu") + "'>" +
+   ((inf.gw || inf.doel) ? sg(inf.saldo) : "\u2014") + "</td></tr>";
+ }
+ $("miniWeekTable").innerHTML = mw;
+};
+
+/* ---------- kalender ---------- */
+APP.kalY = new Date().getFullYear();
+APP.kalM = new Date().getMonth();
+APP.kalNav = function(dir){
+ APP.kalM += dir;
+ if(APP.kalM < 0){ APP.kalM = 11; APP.kalY--; }
+ if(APP.kalM > 11){ APP.kalM = 0; APP.kalY++; }
+ APP.render_kalender();
+};
+APP.render_kalender = function(){
+ $("kalTitle").textContent = MAAN[APP.kalM] + " " + APP.kalY;
+ var hdr = ["ma","di","wo","do","vr","za","zo"], h = "", i, dd, ds, inf, dt, kl, sub;
+ for(i = 0; i < 7; i++){ h += '<div class="cal-hdr">' + hdr[i] + '</div>'; }
+ var lead = (new Date(APP.kalY, APP.kalM, 1).getDay() + 6) % 7;
+ for(i = 0; i < lead; i++){ h += '<div></div>'; }
+ var dim = new Date(APP.kalY, APP.kalM + 1, 0).getDate();
+ var ti = todayIso();
+ for(dd = 1; dd <= dim; dd++){
+  ds = APP.kalY + "-" + pad(APP.kalM + 1) + "-" + pad(dd);
+  inf = APP.dagInfo(ds);
+  dt = fromIso(ds);
+  sub = "";
+  if(inf.gw){ sub = hm(inf.gw) + "u"; }
+  else if(inf.type === "feest"){ sub = "feest"; }
+  else if(inf.type === "miss"){ sub = "mist"; }
+  kl = KLEUR[inf.type];
+  h += '<div class="cal-cell' + (dt.getDay() >= 6 ? " we" : "") + (ds === ti ? " today" : "") +
+       '" onclick="APP.openEdit(\'' + ds + '\')">' +
+       '<div class="cal-day">' + dd + '</div>';
+  if(kl && inf.type !== "vrij" && inf.type !== "verw"){
+   h += '<div class="cal-info"><span class="cal-dot" style="background:' + kl + '"></span>' + (sub || "&nbsp;") + '</div>';
+  }else if(sub){
+   h += '<div class="cal-info">' + sub + '</div>';
+  }
+  h += '</div>';
+ }
+ $("calGrid").innerHTML = h;
+};
+
+/* ---------- dag bewerken ---------- */
+APP.editOrig = null;
+APP.openEdit = function(s){
+ var inf = APP.dagInfo(s), r = inf.rec;
+ APP.editOrig = r ? s : null;
+ $("editTitle").textContent = DG[fromIso(s).getDay()] + " " + nlDate(s);
+ $("editDate").value = s;
+ $("editType").value = r ? r.type : (isFeest(s) ? "feest" : "werk");
+ $("editStart").value = (r && r.start) || "";
+ $("editEnd").value = (r && r.end) || "";
+ $("editBreak").value = (r ? (r.brk || 0) : 0);
+ $("editNote").value = (r && r.note) || "";
+ APP.updateEditHint();
+ $("editModalBg").className = "modal-bg show";
+};
+APP.updateEditHint = function(){
+ var s = $("editDate").value;
+ var fs = s ? isFeest(s) : null;
+ var t = $("editType").value, hint = "";
+ if(fs && t === "feest"){
+  hint = "Feestdag: " + fs.naam + (fs.verpl ? " (verplaatst van " + nlDate(fs.wet) + ")" : "") + ". Doel 0u, geen saldoverlies.";
+ }else if(t === "adv"){
+  hint = "ADV-dag: trekt " + APP.set.dayHrs + "u af van je ADV-saldo. Begin/einde mag leeg blijven.";
+ }else if(t === "vak"){
+  hint = "Vakantiedag: telt in je vakantieteller van dit jaar.";
+ }else if(t === "ziek"){
+  hint = "Ziektedag: doel 0u, geen saldoverlies.";
+ }
+ $("editHint").textContent = hint;
+};
+APP.closeEdit = function(){ $("editModalBg").className = "modal-bg"; };
+APP.saveEdit = function(){
+ var s = $("editDate").value;
+ if(!s){ showNotify("Kies eerst een datum"); return; }
+ if(APP.editOrig && APP.editOrig !== s){ delete APP.days[APP.editOrig]; }
+ APP.days[s] = {
+  date:s, type:$("editType").value,
+  start:$("editStart").value, end:$("editEnd").value,
+  brk:parseInt($("editBreak").value, 10) || 0,
+  note:$("editNote").value.trim()
+ };
+ saveStorage(); APP.closeEdit(); APP.refreshAll(); showNotify("Dag opgeslagen");
+};
+APP.deleteEdit = function(){
+ var s = $("editDate").value;
+ if(APP.days[s] && confirm("Registratie van " + nlDate(s) + " verwijderen?")){
+  delete APP.days[s];
+  saveStorage(); APP.closeEdit(); APP.refreshAll(); showNotify("Verwijderd");
+ }
+};
+
+/* ---------- week / maand / jaar ---------- */
+APP.wkNow = function(){ $("wkDate").value = todayIso(); APP.render_weekVol(); };
+APP.render_weekVol = function(){
+ var ref = $("wkDate").value || todayIso();
+ $("wkDate").value = ref;
+ var d = fromIso(ref), mon = new Date(d);
+ mon.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+ var rows = "", tg = 0, tv = 0, ts = 0, i;
+ for(i = 0; i < 7; i++){
+  var cd = new Date(mon); cd.setDate(mon.getDate() + i);
+  var ds = iso(cd), inf = APP.dagInfo(ds), r = inf.rec;
+  rows += "<tr><td>" + nlDate(ds) + "</td><td>" + DG[cd.getDay()] + "</td>" +
+   "<td><span class='badge " + BG[inf.type] + "'>" + TL[inf.type] + "</span></td>" +
+   "<td>" + ((r && r.start) || "\u2014") + "</td>" +
+   "<td>" + ((r && r.end) || "\u2014") + "</td>" +
+   "<td>" + (r ? (r.brk || 0) + "m" : "\u2014") + "</td>" +
+   "<td>" + (inf.gw ? hm(inf.gw) : "\u2014") + "</td>" +
+   "<td>" + (inf.doel ? hm(inf.doel) : "\u2014") + "</td>" +
+   "<td class='" + (inf.saldo > 0 ? "pos" : inf.saldo < 0 ? "neg" : "neu") + "'>" +
+   ((inf.gw || inf.doel) ? sg(inf.saldo) : "\u2014") + "</td></tr>";
+  if(ds <= todayIso()){
+   tg += inf.gw;
+   if(inf.type !== "adv"){ ts += inf.saldo; }
+   if(inf.doel){ tv += inf.doel; }
+  }
+ }
+ var wkDiff = tg - APP.set.weekHrs * 60;
+ $("weekFullTable").innerHTML =
+  "<tr><th>Datum</th><th>Dg</th><th>Type</th><th>Begin</th><th>Einde</th><th>Pauze</th><th>Gewerkt</th><th>Doel</th><th>Saldo</th></tr>" +
+  rows +
+  "<tfoot><tr><td colspan='6'>Totaal (t/m vandaag)</td><td>" + hm(tg) + "</td><td>" + hm(tv) + "</td>" +
+  "<td class='" + (ts > 0 ? "pos" : ts < 0 ? "neg" : "neu") + "'>" + sg(ts) + "</td></tr>" +
+  "<tr><td colspan='6'>Weekdoel " + APP.set.weekHrs + "u</td><td colspan='3'>" + hm(tg) + " / " + APP.set.weekHrs +
+  ":00 \u00b7 <span class='" + (wkDiff >= 0 ? "pos" : "neg") + "'>" + (wkDiff >= 0 ? "+" : "") + hm(wkDiff) + "</span></td></tr></tfoot>";
+};
+
+APP.mnNow = function(){
+ var n = new Date();
+ $("mnInput").value = n.getFullYear() + "-" + pad(n.getMonth() + 1);
+ APP.render_maand();
+};
+APP.render_maand = function(){
+ var v = $("mnInput").value;
+ if(!v){ APP.mnNow(); return; }
+ var p = v.split("-"), y = +p[0], m = +p[1];
+ var dim = new Date(y, m, 0).getDate();
+ var gw = 0, sd = 0, c = { werk:0, miss:0, vak:0, adv:0, ziek:0, feest:0 };
+ var dd, ds, inf;
+ for(dd = 1; dd <= dim; dd++){
+  ds = y + "-" + pad(m) + "-" + pad(dd);
+  if(ds > todayIso()){ break; }
+  inf = APP.dagInfo(ds);
+  gw += inf.gw;
+  if(inf.type !== "adv"){ sd += inf.saldo; }
+  c[inf.type] = (c[inf.type] || 0) + 1;
+ }
+ $("monthTable").innerHTML =
+  "<tr><th>Gewerkt</th><th>Saldo</th><th>Werk</th><th>Niet ingevuld</th><th>Vak</th><th>ADV</th><th>Ziek</th><th>Feest</th></tr>" +
+  "<tr><td>" + hm(gw) + "</td>" +
+  "<td class='" + (sd > 0 ? "pos" : sd < 0 ? "neg" : "neu") + "'>" + sg(sd) + "</td>" +
+  "<td>" + c.werk + "</td>" +
+  "<td class='" + (c.miss ? "neg" : "neu") + "'>" + c.miss + "</td>" +
+  "<td>" + c.vak + "</td><td>" + c.adv + "</td><td>" + c.ziek + "</td><td>" + c.feest + "</td></tr>";
+};
+
+APP.render_jaar = function(){
+ var y = parseInt($("yrInput").value, 10) || new Date().getFullYear();
+ $("yrInput").value = y;
+ var rows = "", T = { gw:0, sd:0, vak:0, adv:0, ziek:0, fst:0 };
+ var m, dd, ds, inf;
+ for(m = 0; m < 12; m++){
+  var dim = new Date(y, m + 1, 0).getDate();
+  var gw = 0, sd = 0, vak = 0, adv = 0, ziek = 0, fst = 0;
+  for(dd = 1; dd <= dim; dd++){
+   ds = y + "-" + pad(m + 1) + "-" + pad(dd);
+   if(ds > todayIso()){ break; }
+   inf = APP.dagInfo(ds);
+   gw += inf.gw;
+   if(inf.type !== "adv"){ sd += inf.saldo; }
+   if(inf.type === "vak"){ vak++; }
+   if(inf.type === "adv"){ adv++; }
+   if(inf.type === "ziek"){ ziek++; }
+   if(isFeest(ds)){ fst++; }
+  }
+  rows += "<tr><td>" + MAAN[m] + "</td><td>" + hm(gw) + "</td>" +
+   "<td class='" + (sd > 0 ? "pos" : sd < 0 ? "neg" : "neu") + "'>" + sg(sd) + "</td>" +
+   "<td>" + vak + "</td><td>" + adv + "</td><td>" + ziek + "</td><td>" + fst + "</td></tr>";
+  T.gw += gw; T.sd += sd; T.vak += vak; T.adv += adv; T.ziek += ziek; T.fst += fst;
+ }
+ $("yearTable").innerHTML =
+  "<tr><th>Maand</th><th>Gewerkt</th><th>Saldo</th><th>Vak</th><th>ADV</th><th>Ziek</th><th>Feest</th></tr>" +
+  rows +
+  "<tfoot><tr><td>Totaal " + y + "</td><td>" + hm(T.gw) + "</td>" +
+  "<td class='" + (T.sd > 0 ? "pos" : T.sd < 0 ? "neg" : "neu") + "'>" + sg(T.sd) + "</td>" +
+  "<td>" + T.vak + "</td><td>" + T.adv + "</td><td>" + T.ziek + "</td><td>" + T.fst + "</td></tr></tfoot>";
+};
+
+APP.csvExport = function(){
+ var y = parseInt($("yrInput").value, 10) || new Date().getFullYear();
+ var csv = "Datum;Type;Begin;Einde;Pauze_min;Gewerkt_u;Doel_u;Saldo_u;Notitie\r\n";
+ var m, dd, ds, inf;
+ for(m = 1; m <= 12; m++){
+  var dim = new Date(y, m, 0).getDate();
+  for(dd = 1; dd <= dim; dd++){
+   ds = y + "-" + pad(m) + "-" + pad(dd);
+   if(ds > todayIso()){ continue; }
+   inf = APP.dagInfo(ds);
+   csv += [ds, TL[inf.type],
+    (inf.rec && inf.rec.start) || "",
+    (inf.rec && inf.rec.end) || "",
+    (inf.rec ? (inf.rec.brk || 0) : ""),
+    (inf.gw / 60).toFixed(2),
+    (inf.doel / 60).toFixed(2),
+    (inf.saldo / 60).toFixed(2),
+    (inf.rec && inf.rec.note) || ""].join(";") + "\r\n";
+  }
+ }
+ var blob = new Blob(["\ufeff" + csv], { type:"text/csv;charset=utf-8" });
+ var a = document.createElement("a");
+ a.href = URL.createObjectURL(blob);
+ a.download = "uren_" + y + ".csv";
+ document.body.appendChild(a); a.click(); document.body.removeChild(a);
+};
+
+/* ---------- vervoer ---------- */
+APP.vtKey = function(){
+ var v = $("vtMonth").value;
+ if(!v){ APP.vtNow(); v = $("vtMonth").value; }
+ return v;
+};
+APP.vtNow = function(){
+ var n = new Date();
+ $("vtMonth").value = n.getFullYear() + "-" + pad(n.getMonth() + 1);
+ APP.render_vervoer();
+};
+APP.render_vervoer = function(){
+ var k = APP.vtKey(), t = APP.vt[k] || { bike:0, car:0, note:"" };
+ $("vtBike").value = t.bike || 0;
+ $("vtCar").value = t.car || 0;
+ $("vtNote").value = t.note || "";
+};
+APP.saveVT = function(){
+ var k = APP.vtKey();
+ APP.vt[k] = {
+  bike:parseInt($("vtBike").value, 10) || 0,
+  car:parseInt($("vtCar").value, 10) || 0,
+  note:$("vtNote").value.trim()
+ };
+ saveStorage(); showNotify("Vervoer opgeslagen");
+};
+APP.printVT = function(){
+ var k = APP.vtKey(), p = k.split("-"), y = +p[0], m = +p[1];
+ var t = APP.vt[k] || { bike:0, car:0, note:"" };
+ var h = "<h1>Maandelijkse vervoersaangifte</h1>" +
+  "<p>" + MAAN[m - 1] + " " + y + (APP.set.name ? " \u2014 " + esc(APP.set.name) : "") + "</p>" +
+  "<table><tr><th>Vervoermiddel</th><th>Aantal dagen</th></tr>" +
+  "<tr><td>Fiets</td><td>" + (t.bike || 0) + "</td></tr>" +
+  "<tr><td>Auto</td><td>" + (t.car || 0) + "</td></tr></table>";
+ if(t.note){ h += "<p>Opmerking: " + esc(t.note) + "</p>"; }
+ h += "<div style='margin-top:52px;display:flex;justify-content:space-between;width:68%'>" +
+  "<div>Datum: " + new Date().toLocaleDateString("nl-BE") + "</div>" +
+  "<div style='border-top:1px solid #000;padding-top:5px;min-width:180px;text-align:center'>Handtekening</div></div>";
+ $("printArea").innerHTML = h;
+ setTimeout(function(){ window.print(); }, 80);
+};
+
+/* ---------- feestdagen ---------- */
+APP.render_feestdagen = function(){
+ var y = parseInt($("fedYear").value, 10) || new Date().getFullYear();
+ $("fedYear").value = y;
+ var raw = feestdagen(y), sh = APP.sh[String(y)] || {};
+ var h = "<tr><th>Feestdag</th><th>Wettelijk</th><th>Effectief</th><th>Vervangen door</th></tr>";
+ var i, wet, v;
+ for(i = 0; i < raw.length; i++){
+  wet = iso(raw[i].d);
+  v = sh[String(i)] || "";
+  h += "<tr><td>" + raw[i].n + "</td>" +
+   "<td>" + nlDate(wet) + " (" + DG[raw[i].d.getDay()] + ")</td>" +
+   "<td>" + (v ? nlDate(v) + " (" + DG[fromIso(v).getDay()] + ")" : nlDate(wet)) + "</td>" +
+   "<td><input type='date' value='" + v + "' onchange='APP.fedShift(" + y + "," + i + ",this.value)' " +
+   "style='padding:6px;border:1px solid #ccc;border-radius:6px;font-size:0.8rem'></td></tr>";
+ }
+ $("fedTable").innerHTML = h;
+};
+APP.fedShift = function(y, i, v){
+ var key = String(y);
+ if(!APP.sh[key]){ APP.sh[key] = {}; }
+ if(v){ APP.sh[key][String(i)] = v; } else { delete APP.sh[key][String(i)]; }
+ saveStorage(); APP.refreshAll(); showNotify("Feestdag aangepast");
+};
+
+/* ---------- instellingen ---------- */
+APP.render_instellingen = function(){
+ $("stName").value = APP.set.name;
+ $("stStart").value = APP.set.start;
+ $("stDayHrs").value = APP.set.dayHrs;
+ $("stWeekHrs").value = APP.set.weekHrs;
+ $("stVac").value = APP.set.vacDays;
+ $("stVacExtra").value = APP.set.vacExtra;
+ $("stAdvPM").value = APP.set.advPM;
+ $("stAdvStart").value = APP.set.advStart;
+};
+APP.saveSettings = function(){
+ APP.set.name = $("stName").value.trim();
+ var sd = $("stStart").value;
+ if(sd){ APP.set.start = sd; }
+ var f = function(id){ return parseFloat($(id).value) || 0; };
+ APP.set.dayHrs = f("stDayHrs") || 8;
+ APP.set.weekHrs = f("stWeekHrs") || 40;
+ APP.set.vacDays = Math.round(f("stVac"));
+ APP.set.vacExtra = Math.round(f("stVacExtra"));
+ APP.set.advPM = f("stAdvPM");
+ APP.set.advStart = f("stAdvStart");
+ saveStorage(); APP.refreshAll(); showNotify("Instellingen opgeslagen");
+};
+
+/* ---------- back-up ---------- */
+APP.backup = function(){
+ var blob = new Blob(
+  [JSON.stringify({ days:APP.days, set:APP.set, vt:APP.vt, sh:APP.sh }, null, 2)],
+  { type:"application/json" });
+ var a = document.createElement("a");
+ a.href = URL.createObjectURL(blob);
+ a.download = "uren_backup_" + todayIso() + ".json";
+ document.body.appendChild(a); a.click(); document.body.removeChild(a);
+ showNotify("Back-up gedownload");
+};
+APP.restore = function(inp){
+ var f = inp.files[0];
+ if(!f){ return; }
+ var rd = new FileReader();
+ rd.onload = function(){
+  try{
+   var d = JSON.parse(rd.result);
+   if(!d.days){ throw new Error("geen geldige back-up (days ontbreekt)"); }
+   if(!confirm("Bestaande gegevens op dit apparaat vervangen door de back-up?")){ return; }
+   APP.days = d.days;
+   APP.vt = d.vt || {};
+   APP.sh = d.sh || {};
+   var k;
+   for(k in DEF){ APP.set[k] = (d.set && d.set[k] !== undefined) ? d.set[k] : DEF[k]; }
+   saveStorage(); APP.refreshAll(); showNotify("Back-up hersteld");
+  }catch(e){ alert("Ongeldig back-upbestand: " + e.message); }
+ };
+ rd.readAsText(f);
+ inp.value = "";
+};
+
+/* ---------- alles verversen (na datawijziging) ---------- */
+APP.refreshAll = function(){
+ try{ APP.render_dashboard(); }catch(e){ __err("dashboard: " + e.message); }
+ try{ APP.render_kalender(); }catch(e){ __err("kalender: " + e.message); }
+ try{ APP.render_weekVol(); }catch(e){ __err("week: " + e.message); }
+ try{ APP.render_maand(); }catch(e){ __err("maand: " + e.message); }
+ try{ APP.render_jaar(); }catch(e){ __err("jaar: " + e.message); }
+ try{ APP.render_vervoer(); }catch(e){ __err("vervoer: " + e.message); }
+ try{ APP.render_feestdagen(); }catch(e){ __err("feestdagen: " + e.message); }
+ try{ APP.render_instellingen(); }catch(e){ __err("instellingen: " + e.message); }
+ try{ APP.tick(); }catch(e){ __err("tick: " + e.message); }
+};
+
+/* ---------- start ---------- */
+try{
+ loadStorage();
+ invalideerCaches();
+ APP.refreshAll();
+ setInterval(function(){
+  try{ APP.tick(); }catch(e){ /* tick faalt stil door. */ }
+ }, 1000);
+}catch(e){
+ __err("STARTFOUT: " + e.message);
+}
+</script>
+</body>
+</html>
