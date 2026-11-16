@@ -248,7 +248,16 @@ section.active{display:block}
     <button class="btn ghost" style="flex:1" onclick="document.getElementById('backupFile').click()">&#11014; Importeren</button>
    </div>
    <input type="file" id="backupFile" accept=".json" style="display:none" onchange="APP.restore(this)">
-   <div class="hint">Alle data staat lokaal in deze browser op dit apparaat. Exporteer regelmatig, zeker als je op meerdere apparaten werkt.</div>
+   <div class="hint">Of kies hieronder je Proton Drive-map (of een andere gesynchroniseerde map). Elke opslag schrijft automatisch het sync-bestand weg.</div>
+  </div>
+  <div class="card" id="syncCard">
+   <h2>Cloud-sync</h2>
+   <div class="hint">Kies een .json-bestand in je Proton Drive-map (of een andere map die je cloudopslag synchroniseert). Elke wijziging wordt automatisch weggeschreven; bij het opstarten vraagt de app of nieuwere sync-data geladen moet worden. Werkt in Chrome/Edge op desktop.</div>
+   <div style="display:flex;gap:10px;margin-top:8px">
+    <button class="btn" style="flex:1" onclick="APP.kiesSyncBestand()">Sync-bestand kiezen</button>
+    <button class="btn ghost" style="flex:1" onclick="APP.laadSyncBestand()">Uit bestand laden</button>
+   </div>
+   <div class="hint" id="syncStatus"></div>
   </div>
  </section>
 </main>
@@ -368,8 +377,10 @@ function saveStorage(){
   localStorage.setItem("hrs_sh",    JSON.stringify(APP.sh));
   localStorage.setItem("hrs_set",   JSON.stringify(APP.set));
   localStorage.setItem("hrs_clock", JSON.stringify(APP.clock));
+  localStorage.setItem("hrs_lastSave", String(Date.now()));
  }catch(e){ __err("Opslaan mislukt: " + e.message); }
  invalideerCaches();
+ APP.schrijfSync();
 }
 function saveClockOnly(){
  try{ localStorage.setItem("hrs_clock", JSON.stringify(APP.clock)); }
@@ -964,6 +975,87 @@ APP.backup = function(){
  setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
  showNotify("Back-up gedownload");
 };
+
+/* ---------- cloud-sync ---------- */
+APP.syncHandle = null;
+function idbOpenSync(){
+ return new Promise(function(res, rej){
+  var rq = indexedDB.open("hrs_sync", 1);
+  rq.onupgradeneeded = function(){ rq.result.createObjectStore("h"); };
+  rq.onsuccess = function(){ res(rq.result); };
+  rq.onerror = function(){ rej(rq.error); };
+ });
+}
+function idbZetHandle(h){
+ idbOpenSync().then(function(db){
+  db.transaction("h", "readwrite").objectStore("h").put(h, "sync");
+ }).catch(function(){});
+}
+function idbKrijgHandle(){
+ return idbOpenSync().then(function(db){
+  return new Promise(function(res){
+   var g = db.transaction("h", "readonly").objectStore("h").get("sync");
+   g.onsuccess = function(){ res(g.result || null); };
+   g.onerror = function(){ res(null); };
+  });
+ }).catch(function(){ return null; });
+}
+APP.schrijfSync = function(){
+ var h = APP.syncHandle;
+ if(!h || !h.createWritable){ return; }
+ h.createWritable().then(function(w){
+  return w.write(JSON.stringify({ days:APP.days, vt:APP.vt, sh:APP.sh, set:APP.set, saved:new Date().toISOString() })).then(function(){ return w.close(); });
+ }).catch(function(){});
+};
+APP.kiesSyncBestand = function(){
+ if(!window.showSaveFilePicker){ showNotify("Niet ondersteund in deze browser"); return; }
+ window.showSaveFilePicker({ suggestedName:"urenregistratie.json", types:[{ description:"JSON", accept:{ "application/json":[".json"] } }] })
+  .then(function(h){ APP.syncHandle = h; idbZetHandle(h); APP.schrijfSync(); APP.render_syncStatus(); showNotify("Sync-bestand gekoppeld"); })
+  .catch(function(){});
+};
+APP.laadSyncBestand = function(){
+ if(!window.showOpenFilePicker){ showNotify("Niet ondersteund in deze browser"); return; }
+ window.showOpenFilePicker({ types:[{ description:"JSON", accept:{ "application/json":[".json"] } }] })
+  .then(function(fh){ return fh[0].getFile(); })
+  .then(function(f){ return f.text(); })
+  .then(function(txt){
+   var d = JSON.parse(txt);
+   if(!d.days){ throw new Error("geen geldige back-up"); }
+   valideerBackup(d);
+   APP.pasSyncToe(d); showNotify("Sync-bestand geladen");
+  })
+  .catch(function(e){ if(e && e.name !== "AbortError"){ showNotify("Laden mislukt: " + e.message); } });
+};
+APP.pasSyncToe = function(d){
+ APP.days = d.days; APP.vt = d.vt || {}; APP.sh = d.sh || {};
+ if(d.set){
+  for(var k in DEF){ if(d.set[k] !== undefined){ APP.set[k] = d.set[k]; } }
+ }
+ saveStorage(); APP.refreshAll();
+};
+APP.checkSyncNieuwer = function(){
+ var h = APP.syncHandle;
+ if(!h || !h.getFile){ return; }
+ h.getFile().then(function(f){
+  return f.text().then(function(txt){
+   var d;
+   try{ d = JSON.parse(txt); }catch(e){ return; }
+   if(!d || !d.days || !d.saved){ return; }
+   var lokaal = parseInt(localStorage.getItem("hrs_lastSave") || "0", 10);
+   var bestand = Date.parse(d.saved);
+   if(!isFinite(bestand) || bestand <= lokaal){ return; }
+   valideerBackup(d);
+   if(!confirm("Nieuwere gegevens gevonden in het sync-bestand (" + new Date(bestand).toLocaleString() + "). Nu laden?")){ return; }
+   APP.pasSyncToe(d); showNotify("Sync-bestand geladen");
+  });
+ }).catch(function(){});
+};
+APP.render_syncStatus = function(){
+ var el = $("syncStatus");
+ if(!el){ return; }
+ el.textContent = APP.syncHandle ? "Gekoppeld: " + APP.syncHandle.name : "Niet gekoppeld \u2014 kies eerst een sync-bestand.";
+};
+
 function valideerBackup(d){
  var k, s, i, r;
  if(!d || typeof d !== "object" || Array.isArray(d) || !d.days || typeof d.days !== "object" || Array.isArray(d.days)){ throw new Error("days ontbreekt of is geen object"); }
@@ -1063,6 +1155,12 @@ try{
  invalideerCaches();
  APP.refreshAll();
  if(APP.clock){ startTick(); }
+ idbKrijgHandle().then(function(h){
+  if(!h || !h.queryPermission){ return; }
+  return h.queryPermission({mode:"readwrite"}).then(function(st){
+   if(st === "granted"){ APP.syncHandle = h; APP.render_syncStatus(); APP.checkSyncNieuwer(); }
+  });
+ }).catch(function(){});
 }catch(e){
  __err("STARTFOUT: " + e.message);
 }
