@@ -315,7 +315,7 @@ function $(id){ return document.getElementById(id); }
 function pad(n){ n = String(n); while(n.length < 2){ n = "0" + n; } return n; }
 function iso(d){ return d.getFullYear() + "-" + pad(d.getMonth()+1) + "-" + pad(d.getDate()); }
 function fromIso(s){ var p = s.split("-"); return new Date(+p[0], +p[1]-1, +p[2]); }
-function hm(min){ min = Math.abs(min); return pad(Math.floor(min/60)) + ":" + pad(Math.round(min%60)); }
+function hm(min){ min = Math.round(Math.abs(min)); return pad(Math.floor(min/60)) + ":" + pad(min%60); }
 function sg(min){ return (min < 0 ? "-" : "") + hm(min); }
 function toMin(t){ if(!t){ return 0; } var p = t.split(":"); return (+p[0])*60 + ((+p[1]) || 0); }
 function nlDate(s){ return s.split("-").reverse().join("/"); }
@@ -506,7 +506,7 @@ APP.klokStart = function(){
  if(r && r.type !== "werk" && !confirm("Vandaag staat op '" + TL[r.type] + "'. Omzetten naar werken?")){ return; }
  var st = new Date().toTimeString().slice(0,5);
  APP.days[s] = { date:s, type:"werk", start:(r && r.start) || st, end:"", brk:(r && r.brk) || 0, note:(r && r.note) || "" };
- APP.clock = { started:Date.now(), pausedAt:null, brkBase:(r && r.brk) || 0 };
+ APP.clock = { started:Date.now(), day:s, pausedAt:null, brkBase:(r && r.brk) || 0 };
  saveStorage(); APP.tick(); APP.render_dashboard();
  showNotify("Timer gestart om " + st);
 };
@@ -524,13 +524,14 @@ APP.klokPauze = function(){
 };
 APP.klokStop = function(){
  if(!APP.clock){ showNotify("Timer is niet actief"); return; }
- var s = todayIso(), brk = APP.clock.brkBase || 0;
+ var s = APP.clock.day || todayIso(), brk = APP.clock.brkBase || 0;
  if(APP.clock.pausedAt){ brk += (Date.now() - APP.clock.pausedAt); APP.clock.pausedAt = null; }
  var n = new Date(), r = APP.days[s] || { date:s, type:"werk" };
  r.type = "werk";
  r.end = n.toTimeString().slice(0,5);
- r.brk = Math.round(brk / 60000);
  if(!r.start){ r.start = new Date(APP.clock.started).toTimeString().slice(0,5); }
+ if(toMin(r.end) < toMin(r.start)){ r.end = pad(Math.floor(toMin(r.end)/60) + 24) + ":" + pad(toMin(r.end)%60); }
+ r.brk = Math.round(brk / 60000);
  APP.days[s] = r;
  APP.clock = null;
  saveStorage(); APP.tick(); APP.render_dashboard();
@@ -596,7 +597,7 @@ APP.render_dashboard = function(){
            DG[dt.getDay()] + " " + nlDate(s);
  if(inf.fs){ hdr += " <span class='badge bg-feest'>" + esc(inf.fs.naam) + "</span>"; }
  if(inf.type === "miss"){ hdr += "<div class='hint' style='color:var(--danger)'>\u26a0 Deze werkdag is nog niet ingevuld en telt als tekort.</div>"; }
- if(r && r.note){ hdr += "<div class='hint'>\u128221 " + esc(r.note) + "</div>"; }
+ if(r && r.note){ hdr += "<div class='hint'>\u270E " + esc(r.note) + "</div>"; }
  $("dayDetailHeader").innerHTML = hdr;
 
  var tb = "<tr><th>Begin</th><th>Einde</th><th>Pauze</th><th>Gewerkt</th><th>Doel</th><th>Saldo</th></tr>" +
