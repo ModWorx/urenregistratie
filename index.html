@@ -1159,6 +1159,9 @@ try{
  invalideerCaches();
  APP.refreshAll();
  if(APP.clock){ startTick(); }
+ if("serviceWorker" in navigator){
+  navigator.serviceWorker.register("sw.js").catch(function(){});
+ }
  idbKrijgHandle().then(function(h){
   if(!h || !h.queryPermission){ return; }
   return h.queryPermission({mode:"readwrite"}).then(function(st){
