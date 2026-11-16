@@ -940,6 +940,52 @@ APP.backup = function(){
  document.body.appendChild(a); a.click(); document.body.removeChild(a);
  showNotify("Back-up gedownload");
 };
+function valideerBackup(d){
+ var k, s, i, r;
+ if(!d || typeof d !== "object" || Array.isArray(d) || !d.days || typeof d.days !== "object" || Array.isArray(d.days)){ throw new Error("days ontbreekt of is geen object"); }
+ for(k in d.days){
+  r = d.days[k];
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(k) || !r || typeof r !== "object" || Array.isArray(r)){ throw new Error("ongeldige dagregistratie: " + k); }
+  if(!TL[r.type]){ throw new Error("onbekend dagtype " + r.type + " op " + k); }
+  if(r.start && !/^\d{1,2}:[0-5]\d$/.test(r.start)){ throw new Error("ongeldige starttijd op " + k); }
+  if(r.end && !/^\d{1,2}:[0-5]\d$/.test(r.end)){ throw new Error("ongeldige eindtijd op " + k); }
+  if(r.brk !== undefined && (typeof r.brk !== "number" || !isFinite(r.brk) || r.brk < 0 || r.brk > 1440)){ throw new Error("ongeldige pauze op " + k); }
+  if(r.note !== undefined && typeof r.note !== "string"){ throw new Error("ongeldige notitie op " + k); }
+ }
+ if(d.vt !== undefined){
+  if(!d.vt || typeof d.vt !== "object" || Array.isArray(d.vt)){ throw new Error("vervoer is geen object"); }
+  for(k in d.vt){
+   s = d.vt[k];
+   if(!/^\d{4}-\d{2}$/.test(k) || !s || typeof s !== "object" || Array.isArray(s)){ throw new Error("ongeldige vervoerregistratie: " + k); }
+   if(s.bike !== undefined && (typeof s.bike !== "number" || !isFinite(s.bike) || s.bike < 0 || s.bike > 31)){ throw new Error("ongeldig fietsaantal in " + k); }
+   if(s.car !== undefined && (typeof s.car !== "number" || !isFinite(s.car) || s.car < 0 || s.car > 31)){ throw new Error("ongeldig autoaantal in " + k); }
+   if(s.note !== undefined && typeof s.note !== "string"){ throw new Error("ongeldige vervoernotitie in " + k); }
+  }
+ }
+ if(d.sh !== undefined){
+  if(!d.sh || typeof d.sh !== "object" || Array.isArray(d.sh)){ throw new Error("feestdagen is geen object"); }
+  for(k in d.sh){
+   s = d.sh[k];
+   if(!/^\d{4}$/.test(k) || !s || typeof s !== "object" || Array.isArray(s)){ throw new Error("ongeldige feestdagverschuiving: " + k); }
+   for(i in s){
+    if(!/^\d{1,2}$/.test(i)){ throw new Error("ongeldige feestdagindex in " + k); }
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(s[i])){ throw new Error("ongeldige feestdagdatum in " + k); }
+   }
+  }
+ }
+ if(d.set !== undefined){
+  if(!d.set || typeof d.set !== "object" || Array.isArray(d.set)){ throw new Error("instellingen is geen object"); }
+  if(d.set.name !== undefined && typeof d.set.name !== "string"){ throw new Error("ongeldige naam"); }
+  if(d.set.start !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(d.set.start)){ throw new Error("ongeldige begindatum"); }
+  if(d.set.dayHrs !== undefined && (typeof d.set.dayHrs !== "number" || !isFinite(d.set.dayHrs) || d.set.dayHrs < 1 || d.set.dayHrs > 24)){ throw new Error("ongeldig uren/dag"); }
+  if(d.set.weekHrs !== undefined && (typeof d.set.weekHrs !== "number" || !isFinite(d.set.weekHrs) || d.set.weekHrs < 1 || d.set.weekHrs > 80)){ throw new Error("ongeldig uren/week"); }
+  if(d.set.vacDays !== undefined && (typeof d.set.vacDays !== "number" || !isFinite(d.set.vacDays) || d.set.vacDays < 0 || d.set.vacDays > 365)){ throw new Error("ongeldig vakantiedagen"); }
+  if(d.set.vacExtra !== undefined && (typeof d.set.vacExtra !== "number" || !isFinite(d.set.vacExtra) || d.set.vacExtra < 0 || d.set.vacExtra > 365)){ throw new Error("ongeldige extralegale vakantiedagen"); }
+  if(d.set.advPM !== undefined && (typeof d.set.advPM !== "number" || !isFinite(d.set.advPM) || d.set.advPM < 0 || d.set.advPM > 100)){ throw new Error("ongeldige ADV-opbouw"); }
+  if(d.set.advStart !== undefined && (typeof d.set.advStart !== "number" || !isFinite(d.set.advStart) || d.set.advStart < 0 || d.set.advStart > 100000)){ throw new Error("ongeldig ADV-startsaldo"); }
+ }
+}
+
 APP.restore = function(inp){
  var f = inp.files[0];
  if(!f){ return; }
@@ -948,6 +994,7 @@ APP.restore = function(inp){
   try{
    var d = JSON.parse(rd.result);
    if(!d.days){ throw new Error("geen geldige back-up (days ontbreekt)"); }
+   valideerBackup(d);
    if(!confirm("Bestaande gegevens op dit apparaat vervangen door de back-up?")){ return; }
    APP.days = d.days;
    APP.vt = d.vt || {};
