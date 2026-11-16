@@ -1031,7 +1031,7 @@ APP.pasSyncToe = function(d){
  if(d.set){
   for(var k in DEF){ if(d.set[k] !== undefined){ APP.set[k] = d.set[k]; } }
  }
- saveStorage(); APP.refreshAll();
+ saveStorage(); APP.refreshAll(); APP.render_syncStatus();
 };
 APP.checkSyncNieuwer = function(){
  var h = APP.syncHandle;
@@ -1050,10 +1050,30 @@ APP.checkSyncNieuwer = function(){
   });
  }).catch(function(){});
 };
+function syncTijdGeleden(min){
+ if(min <= 0){ return "net"; }
+ if(min < 60){ return min + " min geleden"; }
+ var u = Math.floor(min / 60);
+ if(u < 24){ return u + " uur geleden"; }
+ return Math.floor(u / 24) + " dagen geleden";
+}
 APP.render_syncStatus = function(){
  var el = $("syncStatus");
  if(!el){ return; }
- el.textContent = APP.syncHandle ? "Gekoppeld: " + APP.syncHandle.name : "Niet gekoppeld \u2014 kies eerst een sync-bestand.";
+ var h = APP.syncHandle;
+ if(!h || !h.getFile){ el.textContent = "Niet gekoppeld \u2014 kies eerst een sync-bestand."; return; }
+ h.getFile().then(function(f){ return f.text(); }).then(function(txt){
+  var d;
+  try{ d = JSON.parse(txt); }catch(e){ d = null; }
+  var t = d && d.saved ? Date.parse(d.saved) : NaN;
+  var lokaal = parseInt(localStorage.getItem("hrs_lastSave") || "0", 10);
+  var status = "Gekoppeld: " + h.name;
+  if(isFinite(t)){
+   status += " \u00b7 laatst gesynchroniseerd " + syncTijdGeleden(Math.round((Date.now() - t) / 60000));
+  }
+  if(isFinite(t) && t > lokaal){ status += " \u00b7 nieuwere data beschikbaar"; }
+  el.textContent = status;
+ }).catch(function(){});
 };
 
 function valideerBackup(d){
