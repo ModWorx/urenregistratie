@@ -6,7 +6,7 @@ on:
   pull_request:
 
 jobs:
-  syntax-check:
+  test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -17,3 +17,5 @@ jobs:
         run: node -e "const fs=require('fs');const m=fs.readFileSync('index.html','utf8').match(/<script>([\s\S]*?)<\/script>/);if(!m){console.error('geen <script> gevonden');process.exit(1)}fs.writeFileSync('/tmp/app.js',m[1]);"
       - name: Syntax check
         run: node --check /tmp/app.js
+      - name: Smoke test
+        run: node test/smoke.js

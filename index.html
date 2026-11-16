@@ -2,7 +2,8 @@
 <html lang="nl">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%E2%8F%B1%3C/text%3E%3C/svg%3E">
 <title>Urenregistratie</title>
 <style>
 :root{
@@ -343,6 +344,7 @@ APP.days = {}; APP.set = {}; APP.vt = {}; APP.sh = {}; APP.clock = null;
 
 var dagCache = {};      /* ds -> dagInfo, ongeldig gemaakt bij dataversiewissel */
 var feestCache = {};    /* jaar -> feestmap */
+var saldoSomCache = { versie:-1, basis:null, laatste:null, som:0 };
 var dataVersie = 0;
 
 function invalideerCaches(){ dataVersie++; dagCache = {}; feestCache = {}; }
@@ -378,7 +380,11 @@ function __err(msg){
  var b = $("errBar");
  if(b){ b.style.display = "block"; b.textContent = (b.textContent ? b.textContent + "\n" : "") + msg; }
 }
-window.onerror = function(msg, src, line){ __err("FOUT: " + msg + " (regel " + line + ")"); return false; };
+window.onerror = function(msg, src, line){
+ if(window.console && console.error){ console.error("FOUT:", msg, "in", src, "regel", line); }
+ __err("Er is een onverwachte fout opgetreden: " + msg);
+ return false;
+};
 
 /* ---------- feestdagen (België) met cache ---------- */
 function pasen(y){
@@ -419,8 +425,7 @@ function isFeest(s){ return feestMap(fromIso(s).getFullYear())[s] || null; }
 
 /* ---------- daginfo met cache ---------- */
 APP.dagInfo = function(s){
- var key = s + "#" + dataVersie;
- if(dagCache[key]){ return dagCache[key]; }
+ if(dagCache[s]){ return dagCache[s]; }
  var d = fromIso(s), rec = APP.days[s];
  var wd = (d.getDay() >= 1 && d.getDay() <= 5);
  var fs = isFeest(s), type;
@@ -435,13 +440,27 @@ APP.dagInfo = function(s){
  var saldo = gw - doel;
  if(fs && rec && rec.type === "werk"){ saldo = gw; }
  var info = { type:type, rec:rec, gw:gw, doel:doel, saldo:saldo, fs:fs };
- dagCache[key] = info;
+ dagCache[s] = info;
  return info;
 };
 
 APP.saldoTot = function(){
- var t = 0, d = fromIso(APP.set.start), e = fromIso(todayIso());
- while(d <= e){ t += APP.dagInfo(iso(d)).saldo; d.setDate(d.getDate()+1); }
+ var vandaag = todayIso();
+ if(saldoSomCache.versie !== dataVersie || saldoSomCache.basis !== APP.set.start || (saldoSomCache.laatste && saldoSomCache.laatste > vandaag)){
+  saldoSomCache = { versie:dataVersie, basis:APP.set.start, laatste:null, som:0 };
+ }
+ if(saldoSomCache.laatste === vandaag){ return Math.round(saldoSomCache.som); }
+ var d = saldoSomCache.laatste ? fromIso(saldoSomCache.laatste) : fromIso(APP.set.start);
+ var t = saldoSomCache.som, ds;
+ if(saldoSomCache.laatste){ d.setDate(d.getDate() + 1); }
+ ds = iso(d);
+ while(ds <= vandaag){
+  t += APP.dagInfo(ds).saldo;
+  saldoSomCache.laatste = ds;
+  saldoSomCache.som = t;
+  d.setDate(d.getDate() + 1);
+  ds = iso(d);
+ }
  return Math.round(t);
 };
 APP.advInfo = function(){
@@ -495,7 +514,6 @@ APP.tab = function(t){
    catch(e){ __err(lijst[j] + ": " + e.message); }
   }
   window.scrollTo(0, 0);
-  $("timerDisplay").scrollIntoView;
  }catch(e){ __err("tab: " + e.message); }
 };
 
@@ -508,6 +526,7 @@ APP.klokStart = function(){
  APP.days[s] = { date:s, type:"werk", start:(r && r.start) || st, end:"", brk:(r && r.brk) || 0, note:(r && r.note) || "" };
  APP.clock = { started:Date.now(), day:s, pausedAt:null, brkBase:(r && r.brk) || 0 };
  saveStorage(); APP.tick(); APP.render_dashboard();
+ startTick();
  showNotify("Timer gestart om " + st);
 };
 APP.klokPauze = function(){
@@ -534,6 +553,7 @@ APP.klokStop = function(){
  r.brk = Math.round(brk / 60000);
  APP.days[s] = r;
  APP.clock = null;
+ stopTick();
  saveStorage(); APP.tick(); APP.render_dashboard();
  showNotify("Gestopt om " + r.end + " \u00b7 " + hm(toMin(r.end) - toMin(r.start) - r.brk) + " gewerkt");
 };
@@ -831,10 +851,12 @@ APP.csvExport = function(){
   }
  }
  var blob = new Blob(["\ufeff" + csv], { type:"text/csv;charset=utf-8" });
+ var url = URL.createObjectURL(blob);
  var a = document.createElement("a");
- a.href = URL.createObjectURL(blob);
+ a.href = url;
  a.download = "uren_" + y + ".csv";
  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+ setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
 };
 
 /* ---------- vervoer ---------- */
@@ -934,10 +956,12 @@ APP.backup = function(){
  var blob = new Blob(
   [JSON.stringify({ days:APP.days, set:APP.set, vt:APP.vt, sh:APP.sh }, null, 2)],
   { type:"application/json" });
+ var url = URL.createObjectURL(blob);
  var a = document.createElement("a");
- a.href = URL.createObjectURL(blob);
+ a.href = url;
  a.download = "uren_backup_" + todayIso() + ".json";
  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+ setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
  showNotify("Back-up gedownload");
 };
 function valideerBackup(d){
@@ -1021,14 +1045,24 @@ APP.refreshAll = function(){
  try{ APP.tick(); }catch(e){ __err("tick: " + e.message); }
 };
 
+/* ---------- tick-interval: alleen actief zolang de timer loopt ---------- */
+var tickTimer = null;
+function startTick(){
+ if(tickTimer){ return; }
+ tickTimer = setInterval(function(){
+  try{ APP.tick(); }catch(e){ /* tick faalt stil door. */ }
+ }, 1000);
+}
+function stopTick(){
+ if(tickTimer){ clearInterval(tickTimer); tickTimer = null; }
+}
+
 /* ---------- start ---------- */
 try{
  loadStorage();
  invalideerCaches();
  APP.refreshAll();
- setInterval(function(){
-  try{ APP.tick(); }catch(e){ /* tick faalt stil door. */ }
- }, 1000);
+ if(APP.clock){ startTick(); }
 }catch(e){
  __err("STARTFOUT: " + e.message);
 }
