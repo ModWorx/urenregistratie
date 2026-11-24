@@ -6,6 +6,7 @@ Een zelfstandige urenregistratie-app in één HTML-bestand (`index.html`), ontwi
 
 - **Timer** met pauze; loopt door bij het sluiten of verversen van de app en werkt correct over middernacht
 - **Kalender** met kleurcodering per dagtype (werken, vakantie, ADV, ziekte, feestdag, niet geregistreerd)
+- **Halve dagen** (4u) voor vakantie en ADV: trekt 0,5 dag af van de vakantieteller of 4u van het ADV-saldo, met een dagdoel van 4u
 - **Overzichten** per week, maand en jaar, inclusief saldi (overuren/onderuren)
 - **Vervoersregistratie** per maand met afdrukbare aangifte (PDF via print)
 - **Belgische feestdagen** (automatisch berekend, incl. Pasen-afhankelijke dagen) met mogelijkheid tot verschuiven
@@ -16,6 +17,8 @@ Een zelfstandige urenregistratie-app in één HTML-bestand (`index.html`), ontwi
 ## Gebruik
 
 Open `index.html` in een browser (geoptimaliseerd voor mobiel). Er is geen installatie, server of internetverbinding nodig.
+
+**Halve dag vakantie of ADV boeken**: tik in de kalender (of "Vandaag bewerken") op een dag, kies als dagtype *Vakantie* of *ADV-dag* en vink **"Halve dag (4u)"** aan. Je verwacht dan dat je de overige 4u van die dag werkt, waardoor je dagsaldo op 0 uitkomt.
 
 ## Gegevensopslag
 
