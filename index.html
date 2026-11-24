@@ -288,6 +288,11 @@ section.active{display:block}
     <option value="feest">Feestdag (vrij)</option>
    </select>
   </div>
+  <div class="form-row" id="editHalfRow" style="display:none;margin-bottom:4px">
+   <label style="display:flex;align-items:center;gap:8px;font-size:0.86rem;font-weight:600;cursor:pointer">
+    <input type="checkbox" id="editHalf" onchange="APP.updateEditHint()" style="width:auto"> Halve dag (4u)
+   </label>
+  </div>
   <div id="editHint" class="hint" style="margin-bottom:10px"></div>
   <div class="form-row">
    <div class="form-field"><label>Begin</label><input type="time" id="editStart"></div>
@@ -443,18 +448,18 @@ APP.dagInfo = function(s){
  if(dagCache[s]){ return dagCache[s]; }
  var d = fromIso(s), rec = APP.days[s];
  var wd = (d.getDay() >= 1 && d.getDay() <= 5);
- var fs = isFeest(s), type;
- if(rec){ type = rec.type; }
- else if(fs){ type = "feest"; }
- else if(wd){ type = (s <= todayIso() ? "miss" : "verw"); }
- else { type = "vrij"; }
- var doel = 0;
+ var fs = isFeest(s), type, hf;
+ if(rec){ type = rec.type; hf = (rec.half && (type === "vak" || type === "adv")) ? Math.round(APP.set.dayHrs * 30) : 0; }
+ else if(fs){ type = "feest"; hf = 0; }
+ else if(wd){ type = (s <= todayIso() ? "miss" : "verw"); hf = 0; }
+ else { type = "vrij"; hf = 0; }
+ var doel = hf;
  if(type === "werk" || type === "miss" || type === "verw"){ doel = APP.set.dayHrs * 60; }
  var gw = 0;
  if(rec && rec.start && rec.end){ gw = Math.max(0, toMin(rec.end) - toMin(rec.start) - (rec.brk || 0)); }
  var saldo = gw - doel;
  if(fs && rec && rec.type === "werk"){ saldo = gw; }
- var info = { type:type, rec:rec, gw:gw, doel:doel, saldo:saldo, fs:fs };
+ var info = { type:type, rec:rec, gw:gw, doel:doel, saldo:saldo, fs:fs, hf:hf };
  dagCache[s] = info;
  return info;
 };
@@ -485,16 +490,23 @@ APP.advInfo = function(){
  var m = 0;
  while(cur <= nm){ m++; cur.setMonth(cur.getMonth()+1); }
  var verdiend = m * APP.set.advPM * 60 + APP.set.advStart * 60;
- var genomen = 0, k;
- for(k in APP.days){ if(APP.days[k].type === "adv"){ genomen += APP.set.dayHrs * 60; } }
+ var genomen = 0, k, r2;
+ for(k in APP.days){
+  r2 = APP.days[k];
+  if(r2.type === "adv"){ genomen += (r2.half ? Math.round(APP.set.dayHrs * 30) : APP.set.dayHrs * 60); }
+ }
  var saldo = verdiend - genomen;
  return { saldo:saldo, dagen:saldo / (APP.set.dayHrs * 60) };
 };
 APP.vakInfo = function(y){
- var used = 0, k, ys = String(y);
- for(k in APP.days){ if(APP.days[k].type === "vak" && k.indexOf(ys) === 0){ used++; } }
+ var used = 0, k, r2, ys = String(y);
+ for(k in APP.days){
+  r2 = APP.days[k];
+  if(r2.type === "vak" && k.indexOf(ys) === 0){ used += (r2.half ? 0.5 : 1); }
+ }
+ used = Math.round(used * 10) / 10;
  var tot = APP.set.vacDays + APP.set.vacExtra;
- return { total:tot, used:used, left:tot - used };
+ return { total:tot, used:used, left:Math.round((tot - used) * 10) / 10 };
 };
 
 /* ---------- notificatie ---------- */
@@ -705,6 +717,7 @@ APP.openEdit = function(s){
  $("editTitle").textContent = DG[fromIso(s).getDay()] + " " + nlDate(s);
  $("editDate").value = s;
  $("editType").value = r ? r.type : (isFeest(s) ? "feest" : "werk");
+ $("editHalf").checked = !!(r && r.half);
  $("editStart").value = (r && r.start) || "";
  $("editEnd").value = (r && r.end) || "";
  $("editBreak").value = (r ? (r.brk || 0) : 0);
@@ -716,12 +729,14 @@ APP.updateEditHint = function(){
  var s = $("editDate").value;
  var fs = s ? isFeest(s) : null;
  var t = $("editType").value, hint = "";
+ var hfChecked = !!$("editHalf").checked;
+ $("editHalfRow").style.display = (t === "vak" || t === "adv") ? "" : "none";
  if(fs && t === "feest"){
   hint = "Feestdag: " + fs.naam + (fs.verpl ? " (verplaatst van " + nlDate(fs.wet) + ")" : "") + ". Doel 0u, geen saldoverlies.";
  }else if(t === "adv"){
-  hint = "ADV-dag: trekt " + APP.set.dayHrs + "u af van je ADV-saldo. Begin/einde mag leeg blijven.";
+  hint = "ADV-dag: trekt " + (hfChecked ? (Math.round(APP.set.dayHrs / 2 * 10) / 10) + "u" : APP.set.dayHrs + "u") + " af van je ADV-saldo. Begin/einde mag leeg blijven.";
  }else if(t === "vak"){
-  hint = "Vakantiedag: telt in je vakantieteller van dit jaar.";
+  hint = "Vakantiedag: verbruikt " + (hfChecked ? "een halve" : "een hele") + " dag van je vakantieteller van dit jaar.";
  }else if(t === "ziek"){
   hint = "Ziektedag: doel 0u, geen saldoverlies.";
  }
@@ -732,12 +747,14 @@ APP.saveEdit = function(){
  var s = $("editDate").value;
  if(!s){ showNotify("Kies eerst een datum"); return; }
  if(APP.editOrig && APP.editOrig !== s){ delete APP.days[APP.editOrig]; }
+ var t = $("editType").value;
  APP.days[s] = {
-  date:s, type:$("editType").value,
+  date:s, type:t,
   start:$("editStart").value, end:$("editEnd").value,
   brk:parseInt($("editBreak").value, 10) || 0,
   note:$("editNote").value.trim()
  };
+ if((t === "vak" || t === "adv") && $("editHalf").checked){ APP.days[s].half = true; }
  saveStorage(); APP.closeEdit(); APP.refreshAll(); showNotify("Dag opgeslagen");
 };
 APP.deleteEdit = function(){
@@ -1091,6 +1108,7 @@ function valideerBackup(d){
   if(r.end && !/^\d{1,2}:[0-5]\d$/.test(r.end)){ throw new Error("ongeldige eindtijd op " + k); }
   if(r.brk !== undefined && (typeof r.brk !== "number" || !isFinite(r.brk) || r.brk < 0 || r.brk > 1440)){ throw new Error("ongeldige pauze op " + k); }
   if(r.note !== undefined && typeof r.note !== "string"){ throw new Error("ongeldige notitie op " + k); }
+  if(r.half !== undefined && typeof r.half !== "boolean"){ throw new Error("ongeldige halve dag-vlag op " + k); }
  }
  if(d.vt !== undefined){
   if(!d.vt || typeof d.vt !== "object" || Array.isArray(d.vt)){ throw new Error("vervoer is geen object"); }

@@ -82,5 +82,28 @@ check("klokStop sluit timer af", APP.clock === null && APP.days[vandaag].type ==
 
 check("saldoTot geeft getal", typeof APP.saldoTot() === "number");
 
+/* halve dag vakantie/ADV */
+const dagHf = "2025-07-15";
+APP.days[dagHf] = { date:dagHf, type:"vak", half:true, start:"", end:"", brk:0, note:"" };
+saveStorage();
+const infHf = APP.dagInfo(dagHf);
+check("halve vakantiedag: doel 4u", infHf.doel === 240);
+check("halve vakantiedag: saldo -4u zonder registratie", infHf.saldo === -240);
+const vak = APP.vakInfo(2025);
+check("halve vakantiedag: 0,5 dag af van teller", vak.used === 0.5);
+const dagAdv = "2025-07-16";
+const adVoor = APP.advInfo().saldo;
+APP.days[dagAdv] = { date:dagAdv, type:"adv", half:true, start:"", end:"", brk:0, note:"" };
+saveStorage();
+const ad = APP.advInfo();
+check("halve ADV-dag: 4u af van saldo", ad.saldo === adVoor - 240);
+APP.days[dagHf].half = false; APP.days[dagHf].type = "werk"; delete APP.days[dagHf].half;
+saveStorage();
+check("halve dag-vlag bij niet-vak/ADV genegeerd", APP.dagInfo(dagHf).doel === 480);
+
+let gegooidHalf = false;
+try{ valideerBackup({ days: (o => (o[dagAdv] = { date:dagAdv, type:"adv", half:"ja" }, o))({}) }); }catch(e){ gegooidHalf = true; }
+check("valideerBackup weigert ongeldige half-vlag", gegooidHalf);
+
 if(fouten){ console.error(fouten + " test(en) gefaald"); process.exit(1); }
 console.log("Alle rooktests geslaagd");
